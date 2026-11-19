@@ -10,6 +10,8 @@ import presentation.controller.OrderController;
 import presentation.model.CreateItemDto;
 import presentation.model.CreateOrderDto;
 import presentation.model.ItemDto;
+import uow.SQLUnitOfWorkFactory;
+import uow.TextUnitOfWorkFactory;
 
 import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
@@ -87,9 +89,9 @@ public class ItemFrame extends JFrame {
 
         sourceCombo.addActionListener(e -> {
             if (sourceCombo.getSelectedIndex() == 0) {
-                GlobalConn.setConnection(new SQLConnection());
+                GlobalConn.setFactory(new SQLUnitOfWorkFactory());
             } else {
-                GlobalConn.setConnection(new TextConnection());
+                GlobalConn.setFactory(new TextUnitOfWorkFactory());
             }
             refreshTable();
             refreshAvailableItems();

@@ -1,8 +1,6 @@
 package db;
 
-import data.dao.IItemDao;
-import data.dao.IOrderDao;
-import data.dao.ItemTextDao;
+import data.dao.*;
 
 public class TextConnection implements IDataConnection {
 
@@ -15,4 +13,15 @@ public class TextConnection implements IDataConnection {
     public IOrderDao getOrderDao() {
         return null;
     }
+
+    @Override
+    public IAddressDao getAddressDao() {
+        return null;
+    }
+
+    @Override
+    public ICustomerDao getCustomerDao() {
+        return null;
+    }
+
 }

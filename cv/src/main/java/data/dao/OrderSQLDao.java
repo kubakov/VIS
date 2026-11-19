@@ -1,14 +1,18 @@
 package data.dao;
 
 import data.model.*;
-import db.DatabaseConnection;
-
 import java.sql.*;
-import java.util.Collections;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
 public class OrderSQLDao implements IOrderDao {
+
+    private final Connection connection;
+
+    public OrderSQLDao(Connection connection) {
+        this.connection = connection;
+    }
 
     @Override
     public Optional<OrderEntity> getOrderById(Long id) {
@@ -26,14 +30,12 @@ public class OrderSQLDao implements IOrderDao {
             LEFT JOIN items i ON sc.item_id = i.id
             WHERE o.id = ?
         """;
-        try(Connection conn = DatabaseConnection.getConnection(); PreparedStatement ps = conn.prepareStatement(sql)){
+        try (PreparedStatement ps = connection.prepareStatement(sql)) {
             ps.setLong(1, id);
-
-            try(ResultSet rs = ps.executeQuery()){
+            try (ResultSet rs = ps.executeQuery()) {
                 OrderEntity order = null;
-
-                while(rs.next()){
-                    if(order == null){
+                while (rs.next()) {
+                    if (order == null) {
                         order = new OrderEntity();
                         order.setId(rs.getLong("order_id"));
 
@@ -41,8 +43,8 @@ public class OrderSQLDao implements IOrderDao {
                                 rs.getLong("customer_id"),
                                 rs.getString("fname"),
                                 rs.getString("lname"),
-                                rs.getString("phone"),
-                                rs.getString("email")
+                                rs.getString("email"),
+                                rs.getString("phone")
                         );
                         order.setCustomer(customer);
 
@@ -57,7 +59,7 @@ public class OrderSQLDao implements IOrderDao {
                     }
 
                     Long cartId = rs.getObject("cart_id", Long.class);
-                    if(cartId != null){
+                    if (cartId != null) {
                         ItemEntity item = new ItemEntity(
                                 rs.getLong("item_id"),
                                 rs.getString("item_name"),
@@ -69,62 +71,34 @@ public class OrderSQLDao implements IOrderDao {
                 }
                 return Optional.ofNullable(order);
             }
-        } catch (SQLException e){
+        } catch (SQLException e) {
             throw new RuntimeException("Chyba při načítání objednávky z DB", e);
         }
     }
 
     @Override
     public List<OrderEntity> getAllOrders() {
-        return Collections.emptyList();
+        return new ArrayList<>();
     }
 
     @Override
     public OrderEntity createOrder(OrderEntity order) {
-        String insertAddressSql = "INSERT INTO address (street, city, house_number, postal_code) VALUES (?, ?, ?, ?)";
-        String insertCustomerSql = "INSERT INTO customer (fname, lname, email, phone) VALUES (?, ?, ?, ?)";
         String insertOrderSql = "INSERT INTO \"order\" (customer_id, address_id) VALUES (?, ?)";
         String insertCartSql = "INSERT INTO shopping_cart (order_id, item_id, curr_price) VALUES (?, ?, ?)";
 
-        Connection conn = null;
-        try{
-            conn = DatabaseConnection.getConnection();
-            conn.setAutoCommit(false);
-
-            AddressEntity addr = order.getAddress();
-            try(PreparedStatement ps = conn.prepareStatement(insertAddressSql, Statement.RETURN_GENERATED_KEYS)){
-                ps.setString(1, addr.getStreet());
-                ps.setString(2, addr.getCity());
-                ps.setString(3, addr.getHouseNumber());
-                ps.setString(4, addr.getPostalCode());
+        try {
+            try (PreparedStatement ps = connection.prepareStatement(insertOrderSql, Statement.RETURN_GENERATED_KEYS)) {
+                ps.setLong(1, order.getCustomer().getId());
+                ps.setLong(2, order.getAddress().getId());
                 ps.executeUpdate();
-                try(ResultSet rs = ps.getGeneratedKeys()){
-                    if(rs.next()) addr.setId(rs.getLong(1));
+                try (ResultSet rs = ps.getGeneratedKeys()) {
+                    if (rs.next()) {
+                        order.setId(rs.getLong(1));
+                    }
                 }
             }
 
-            CustomerEntity cust = order.getCustomer();
-            try (PreparedStatement ps = conn.prepareStatement(insertCustomerSql, Statement.RETURN_GENERATED_KEYS)){
-                ps.setString(1, cust.getfName());
-                ps.setString(2, cust.getlName());
-                ps.setString(3, cust.getEmail());
-                ps.setString(4, cust.getPhone());
-                ps.executeUpdate();
-                try(ResultSet rs = ps.getGeneratedKeys()){
-                    if(rs.next()) cust.setId(rs.getLong(1));
-                }
-            }
-
-            try (PreparedStatement ps = conn.prepareStatement(insertOrderSql, Statement.RETURN_GENERATED_KEYS)){
-                ps.setLong(1, cust.getId());
-                ps.setLong(2, addr.getId());
-                ps.executeUpdate();
-                try(ResultSet rs = ps.getGeneratedKeys()){
-                    if(rs.next()) order.setId(rs.getLong(1));
-                }
-            }
-
-            try (PreparedStatement ps = conn.prepareStatement(insertCartSql)) {
+            try (PreparedStatement ps = connection.prepareStatement(insertCartSql)) {
                 for (ShoppingCartItemEntity item : order.getItems()) {
                     ps.setLong(1, order.getId());
                     ps.setLong(2, item.getItem().getId());
@@ -134,24 +108,9 @@ public class OrderSQLDao implements IOrderDao {
                 ps.executeBatch();
             }
 
-            conn.commit();
-            System.out.println("[OrderSQLDao] Objednávka ID=" + order.getId() + " úspěšně uložena.");
             return order;
         } catch (SQLException e) {
-            if(conn != null){
-                try {
-                    conn.rollback();
-                } catch (SQLException ex) {
-                    ex.printStackTrace();
-                }
-            }
-            throw new RuntimeException("Chyba při ukládání složené objednávky do DB", e);
-        } finally {
-            if(conn != null){
-                try {
-                    conn.setAutoCommit(true);
-                } catch (SQLException ignored) {}
-            }
+            throw new RuntimeException("Chyba při ukládání objednávky", e);
         }
     }
 }

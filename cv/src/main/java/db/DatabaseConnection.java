@@ -1,5 +1,6 @@
 package db;
 
+import config.AppConfig;
 import org.h2.tools.Server;
 
 import java.io.IOException;
@@ -12,9 +13,9 @@ import java.sql.Statement;
 
 public class DatabaseConnection {
 
-    private static final String URL = "jdbc:h2:./data/shop;AUTO_SERVER=TRUE";
-    private static final String USER = "sa";
-    private static final String PASSWORD = "";
+    private static final String URL = AppConfig.getProperty("db.url");
+    private static final String USER = AppConfig.getProperty("db.user");
+    private static final String PASSWORD = AppConfig.getProperty("db.password");
 
     private static Server webServer;
     private static boolean initialized = false;
@@ -30,11 +31,14 @@ public class DatabaseConnection {
     }
 
     public static void startWebConsole() {
+        if(!AppConfig.getBooleanProperty("db.webconsole.enabled", false)) return;
+
         try {
             if (webServer == null) {
-                webServer = Server.createWebServer("-webPort", "8082", "-tcpAllowOthers").start();
+                int port = AppConfig.getIntProperty("db.webconsole.port", 8082);
+                webServer = Server.createWebServer("-webPort", String.valueOf(port), "-tcpAllowOthers").start();
                 System.out.println("[H2] Webová konzole běží na: " + webServer.getURL());
-                System.out.println("[H2] JDBC URL: " + URL + " (user: sa, password: prázdné)");
+                System.out.println("[H2] JDBC URL: " + URL);
             }
         } catch (SQLException e) {
             System.err.println("[H2] Nepodařilo se spustit webovou konzoli: " + e.getMessage());

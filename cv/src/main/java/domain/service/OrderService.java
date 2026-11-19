@@ -1,12 +1,14 @@
 package domain.service;
 
-import data.dao.IOrderDao;
+import data.mapper.ItemDataMapper;
 import data.mapper.OrderDataMapper;
-import data.model.OrderEntity;
+import data.model.*;
 import db.GlobalConn;
 import domain.model.Order;
+import uow.IUnitOfWork;
 
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 public class OrderService implements IOrderService {
 
@@ -15,8 +17,9 @@ public class OrderService implements IOrderService {
         if (id == null || id <= 0) {
             throw new IllegalArgumentException("Neplatné ID objednávky");
         }
-        IOrderDao dao = GlobalConn.getOrderDao();
-        return dao.getOrderById(id).map(OrderDataMapper::toDomain);
+        try (IUnitOfWork uow = GlobalConn.getFactory().createUnitOfWork()) {
+            return uow.getOrderDao().getOrderById(id).map(OrderDataMapper::toDomain);
+        }
     }
 
     @Override
@@ -24,12 +27,43 @@ public class OrderService implements IOrderService {
         if (order == null || !order.isValid()) {
             throw new IllegalArgumentException("Objednávka je neplatná (musí obsahovat zákazníka, adresu a alespoň jednu položku).");
         }
-        IOrderDao dao = GlobalConn.getOrderDao();
-        if(dao == null) {
-            throw new UnsupportedOperationException("Zvolené úložiště nepodporuje ukládání objednávek.");
+
+        try (IUnitOfWork uow = GlobalConn.getFactory().createUnitOfWork()) {
+
+            AddressEntity addressEntity = new AddressEntity(
+                    null,
+                    order.getDeliveryAddress().getStreet(),
+                    order.getDeliveryAddress().getCity(),
+                    order.getDeliveryAddress().getHouseNumber(),
+                    order.getDeliveryAddress().getPostalCode()
+            );
+            addressEntity = uow.getAddressDao().create(addressEntity);
+
+            CustomerEntity customerEntity = new CustomerEntity(
+                    null,
+                    order.getCustomer().getFirstName(),
+                    order.getCustomer().getLastName(),
+                    order.getCustomer().getEmail(),
+                    order.getCustomer().getPhone()
+            );
+            customerEntity = uow.getCustomerDao().create(customerEntity);
+
+            OrderEntity orderEntity = new OrderEntity();
+            orderEntity.setCustomer(customerEntity);
+            orderEntity.setAddress(addressEntity);
+            orderEntity.setItems(order.getItems().stream()
+                    .map(item -> new ShoppingCartItemEntity(
+                            null,
+                            ItemDataMapper.toEntity(item.getItem()),
+                            item.getPriceAtPurchase()
+                    ))
+                    .collect(Collectors.toList()));
+
+            OrderEntity savedOrder = uow.getOrderDao().createOrder(orderEntity);
+            order.setId(savedOrder.getId());
+
+            uow.commit();
+            return order;
         }
-        OrderEntity savedEntity = dao.createOrder(OrderDataMapper.toEntity(order));
-        order.setId(savedEntity.getId());
-        return order;
     }
 }

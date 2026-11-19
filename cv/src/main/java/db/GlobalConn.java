@@ -1,23 +1,16 @@
 package db;
 
-import data.dao.IItemDao;
-import data.dao.IOrderDao;
+import uow.IUnitOfWorkFactory;
+import uow.SQLUnitOfWorkFactory;
 
 public class GlobalConn {
+    private static IUnitOfWorkFactory uowFactory = new SQLUnitOfWorkFactory();
 
-    private static IDataConnection connection = new SQLConnection();
-
-    public static void setConnection(IDataConnection newConnection) {
-        connection = newConnection;
+    public static void setFactory(IUnitOfWorkFactory factory) {
+        uowFactory = factory;
     }
 
-    public static IDataConnection getConnection() {
-        return connection;
+    public static IUnitOfWorkFactory getFactory() {
+        return uowFactory;
     }
-
-    public static IItemDao getItemDao() {
-        return connection.getItemDao();
-    }
-
-    public static IOrderDao getOrderDao() { return connection.getOrderDao(); }
 }

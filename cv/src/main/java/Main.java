@@ -4,6 +4,7 @@ import db.SQLConnection;
 import presentation.controller.OrderController;
 import presentation.model.OrderDetailDto;
 import presentation.view.ItemFrame;
+import uow.SQLUnitOfWorkFactory;
 
 import javax.swing.SwingUtilities;
 
@@ -12,7 +13,7 @@ public class Main {
     public static void main(String[] args) {
         DatabaseConnection.startWebConsole();
 
-        GlobalConn.setConnection(new SQLConnection());
+        GlobalConn.setFactory(new SQLUnitOfWorkFactory());
 
         OrderController orderController = new OrderController();
 
