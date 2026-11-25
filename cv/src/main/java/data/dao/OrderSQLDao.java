@@ -1,5 +1,9 @@
 package data.dao;
 
+import data.identitymap.AddressIdentityMap;
+import data.identitymap.CustomerIdentityMap;
+import data.identitymap.ItemIdentityMap;
+import data.identitymap.OrderIdentityMap;
 import data.model.*;
 import java.sql.*;
 import java.util.ArrayList;
@@ -9,13 +13,34 @@ import java.util.Optional;
 public class OrderSQLDao implements IOrderDao {
 
     private final Connection connection;
+    private final OrderIdentityMap orderIdentityMap;
+    private final CustomerIdentityMap customerIdentityMap;
+    private final AddressIdentityMap addressIdentityMap;
+    private final ItemIdentityMap itemIdentityMap;
 
     public OrderSQLDao(Connection connection) {
         this.connection = connection;
+        orderIdentityMap = new OrderIdentityMap();
+        customerIdentityMap = new CustomerIdentityMap();
+        addressIdentityMap = new AddressIdentityMap();
+        itemIdentityMap = new ItemIdentityMap();
+    }
+
+    public OrderSQLDao(Connection connection, OrderIdentityMap orderIdentityMap, CustomerIdentityMap customerIdentityMap, AddressIdentityMap addressIdentityMap, ItemIdentityMap itemIdentityMap) {
+        this.connection = connection;
+        this.orderIdentityMap = orderIdentityMap;
+        this.customerIdentityMap = customerIdentityMap;
+        this.addressIdentityMap = addressIdentityMap;
+        this.itemIdentityMap = itemIdentityMap;
     }
 
     @Override
     public Optional<OrderEntity> getOrderById(Long id) {
+        Optional<OrderEntity> cachedOrder = orderIdentityMap.get(id);
+        if (cachedOrder.isPresent()) {
+            return cachedOrder;
+        }
+
         String sql = """
             SELECT
                 o.id AS order_id,
@@ -39,35 +64,54 @@ public class OrderSQLDao implements IOrderDao {
                         order = new OrderEntity();
                         order.setId(rs.getLong("order_id"));
 
-                        CustomerEntity customer = new CustomerEntity(
-                                rs.getLong("customer_id"),
-                                rs.getString("fname"),
-                                rs.getString("lname"),
-                                rs.getString("email"),
-                                rs.getString("phone")
-                        );
+                        Long customerId = rs.getLong("customer_id");
+                        CustomerEntity customer = customerIdentityMap.get(customerId).orElse(null);
+                        if (customer == null) {
+                            customer = new CustomerEntity(
+                                    customerId,
+                                    rs.getString("fname"),
+                                    rs.getString("lname"),
+                                    rs.getString("email"),
+                                    rs.getString("phone")
+                            );
+                            customerIdentityMap.put(customerId, customer);
+                        }
                         order.setCustomer(customer);
 
-                        AddressEntity address = new AddressEntity(
-                                rs.getLong("address_id"),
-                                rs.getString("street"),
-                                rs.getString("city"),
-                                rs.getString("house_number"),
-                                rs.getString("postal_code")
-                        );
+                        Long addressId = rs.getLong("address_id");
+                        AddressEntity address = addressIdentityMap.get(addressId).orElse(null);
+                        if (address == null) {
+                            address = new AddressEntity(
+                                    addressId,
+                                    rs.getString("street"),
+                                    rs.getString("city"),
+                                    rs.getString("house_number"),
+                                    rs.getString("postal_code")
+                            );
+                            addressIdentityMap.put(addressId, address);
+                        }
                         order.setAddress(address);
                     }
 
                     Long cartId = rs.getObject("cart_id", Long.class);
                     if (cartId != null) {
-                        ItemEntity item = new ItemEntity(
-                                rs.getLong("item_id"),
-                                rs.getString("item_name"),
-                                rs.getString("item_desc"),
-                                rs.getBigDecimal("item_price")
-                        );
+                        Long itemId = rs.getLong("item_id");
+                        ItemEntity item = itemIdentityMap.get(itemId).orElse(null);
+                        if (item == null) {
+                            item = new ItemEntity(
+                                    itemId,
+                                    rs.getString("item_name"),
+                                    rs.getString("item_desc"),
+                                    rs.getBigDecimal("item_price")
+                            );
+                            itemIdentityMap.put(itemId, item);
+                        }
                         order.getItems().add(new ShoppingCartItemEntity(cartId, item, rs.getBigDecimal("curr_price")));
                     }
+                }
+
+                if (order != null) {
+                    orderIdentityMap.put(order.getId(), order);
                 }
                 return Optional.ofNullable(order);
             }
@@ -108,6 +152,7 @@ public class OrderSQLDao implements IOrderDao {
                 ps.executeBatch();
             }
 
+            orderIdentityMap.put(order.getId(), order);
             return order;
         } catch (SQLException e) {
             throw new RuntimeException("Chyba při ukládání objednávky", e);

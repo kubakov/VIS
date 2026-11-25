@@ -1,6 +1,11 @@
 package uow;
 
 import data.dao.*;
+import data.identitymap.AddressIdentityMap;
+import data.identitymap.CustomerIdentityMap;
+import data.identitymap.ItemIdentityMap;
+import data.identitymap.OrderIdentityMap;
+
 import java.sql.Connection;
 import java.sql.SQLException;
 
@@ -8,6 +13,11 @@ public class SQLUnitOfWork implements IUnitOfWork {
 
     private final Connection connection;
     private boolean committed = false;
+
+    private final ItemIdentityMap itemIdentityMap = new ItemIdentityMap();
+    private final OrderIdentityMap orderIdentityMap = new OrderIdentityMap();
+    private final CustomerIdentityMap customerIdentityMap = new CustomerIdentityMap();
+    private final AddressIdentityMap addressIdentityMap = new AddressIdentityMap();
 
     private IItemDao itemDao;
     private IOrderDao orderDao;
@@ -25,25 +35,39 @@ public class SQLUnitOfWork implements IUnitOfWork {
 
     @Override
     public IItemDao getItemDao() {
-        if (itemDao == null) itemDao = new ItemSQLDao(connection);
+        if (itemDao == null) {
+            itemDao = new ItemSQLDao(connection, itemIdentityMap);
+        }
         return itemDao;
     }
 
     @Override
     public IOrderDao getOrderDao() {
-        if (orderDao == null) orderDao = new OrderSQLDao(connection);
+        if (orderDao == null) {
+            orderDao = new OrderSQLDao(
+                    connection,
+                    orderIdentityMap,
+                    customerIdentityMap,
+                    addressIdentityMap,
+                    itemIdentityMap
+            );
+        }
         return orderDao;
     }
 
     @Override
     public ICustomerDao getCustomerDao() {
-        if (customerDao == null) customerDao = new CustomerSQLDao(connection);
+        if (customerDao == null) {
+            customerDao = new CustomerSQLDao(connection, customerIdentityMap);
+        }
         return customerDao;
     }
 
     @Override
     public IAddressDao getAddressDao() {
-        if (addressDao == null) addressDao = new AddressSQLDao(connection);
+        if (addressDao == null) {
+            addressDao = new AddressSQLDao(connection, addressIdentityMap);
+        }
         return addressDao;
     }
 
@@ -78,6 +102,11 @@ public class SQLUnitOfWork implements IUnitOfWork {
             connection.close();
         } catch (SQLException e) {
             System.err.println("Chyba při zavírání UnitOfWork: " + e.getMessage());
+        } finally {
+            itemIdentityMap.clear();
+            orderIdentityMap.clear();
+            customerIdentityMap.clear();
+            addressIdentityMap.clear();
         }
     }
 }

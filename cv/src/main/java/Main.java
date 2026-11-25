@@ -1,9 +1,12 @@
+import data.model.CustomerEntity;
+import data.model.OrderEntity;
 import db.DatabaseConnection;
 import db.GlobalConn;
 import db.SQLConnection;
 import presentation.controller.OrderController;
 import presentation.model.OrderDetailDto;
 import presentation.view.ItemFrame;
+import uow.IUnitOfWork;
 import uow.SQLUnitOfWorkFactory;
 
 import javax.swing.SwingUtilities;
@@ -14,6 +17,21 @@ public class Main {
         DatabaseConnection.startWebConsole();
 
         GlobalConn.setFactory(new SQLUnitOfWorkFactory());
+
+        try (IUnitOfWork uow = GlobalConn.getFactory().createUnitOfWork()) {
+            OrderEntity o1 = uow.getOrderDao().getOrderById(1L).orElseThrow();
+            OrderEntity o2 = uow.getOrderDao().getOrderById(1L).orElseThrow();
+            CustomerEntity c1 = uow.getCustomerDao().getById(o1.getCustomer().getId()).orElseThrow();
+
+            System.out.println("Stejná instance objednávky: " + (o1 == o2));
+            System.out.println("Stejná instance zákazníka:  " + (o1.getCustomer() == c1));
+        }
+
+
+        try (IUnitOfWork uow2 = GlobalConn.getFactory().createUnitOfWork()) {
+            OrderEntity o3 = uow2.getOrderDao().getOrderById(1L).orElseThrow();
+            System.out.println("Nový UoW vytvořil novou mapu (o3 načteno znovu): " + (o3.getId() == 1L));
+        }
 
         OrderController orderController = new OrderController();
 
